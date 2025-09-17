@@ -1,0 +1,4 @@
+# Project Coding Rules (Non-Obvious Only)
+
+- Tooling is installed inside the Dev Container, not the host: Node.js LTS via a feature and a global install of @anthropic-ai/claude-code run by post-create [".devcontainer/devcontainer.json"](.devcontainer/devcontainer.json:8) [".devcontainer/devcontainer.json"](.devcontainer/devcontainer.json:34). Run CLI tooling from a Dev Container terminal to ensure PATH resolution matches the container environment.
+- There are currently no custom utilities, workspace manifests, or crate-level conventions checked into this repo (no [Cargo.toml](Cargo.toml)). Add any future conventions via committed config rather than undocumented practices.

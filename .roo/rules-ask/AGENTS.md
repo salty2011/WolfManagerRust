@@ -1,0 +1,4 @@
+# Project Documentation Rules (Non-Obvious Only)
+
+- No assistant-specific rule files exist in this repo (no [AGENTS.md](AGENTS.md) previously, no [.cursorrules](.cursorrules), no [.cursor/rules/](.cursor/rules/), no [CLAUDE.md](CLAUDE.md), no [.github/copilot-instructions.md](.github/copilot-instructions.md)); this file and the root AGENTS.md are the first guidance artifacts.
+- Documentation signals come primarily from the Dev Container config and Dependabot settings: see [".devcontainer/devcontainer.json"](.devcontainer/devcontainer.json:1) and [.github/dependabot.yml](.github/dependabot.yml:1).
