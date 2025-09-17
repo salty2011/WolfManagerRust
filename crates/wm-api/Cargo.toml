@@ -1,0 +1,27 @@
+[package]
+name = "wm-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+axum.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+utoipa.workspace = true
+utoipa-axum.workspace = true
+utoipa-swagger-ui.workspace = true
+dashmap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+time.workspace = true
+uuid.workspace = true
+sqlx.workspace = true
+
+wm-core = { path = "../wm-core" }
+wm-config = { path = "../wm-config" }
+wm-storage = { path = "../wm-storage" }
+wm-adapters = { path = "../wm-adapters" }

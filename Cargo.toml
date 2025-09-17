@@ -1,0 +1,53 @@
+[workspace]
+members = [
+  "crates/wm-api",
+  "crates/wm-core",
+  "crates/wm-adapters",
+  "crates/wm-storage",
+  "crates/wm-config",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+authors = ["WolfManagerRust Devs"]
+
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+time = "0.3"
+uuid = { version = "1", features = ["serde", "v4"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+dashmap = "5"
+
+# Web
+axum = "0.7"
+tokio = { version = "1.38", features = ["macros", "rt-multi-thread", "signal"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace", "compression"] }
+
+# OpenAPI
+utoipa = { version = "4", features = ["macros"] }
+utoipa-axum = "0.1"
+utoipa-swagger-ui = { version = "5", features = ["axum"] }
+
+# Storage
+sqlx = { version = "0.7", default-features = false, features = [
+  "runtime-tokio",
+  "macros",
+  "uuid",
+  "time",
+  "sqlite",
+  "postgres",
+  "migrate",
+  "offline",
+  "any"
+] }
+
+# Adapters
+reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "unix-socket"] }
+bollard = "0.16"

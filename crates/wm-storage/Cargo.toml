@@ -1,0 +1,14 @@
+[package]
+name = "wm-storage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow.workspace = true
+tracing.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+
+[features]
+# enable to compile migrations into binary if desired in wm-api later
+offline = []
