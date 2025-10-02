@@ -8,6 +8,10 @@ pub struct Config {
     pub db_url: String,
     pub wolf_sock_path: String,
     pub docker_sock_path: String,
+    pub wolf_proxy_connect_timeout_ms: u64,
+    pub wolf_proxy_read_timeout_ms: u64,
+    pub wolf_proxy_retry_attempts: u32,
+    pub wolf_proxy_retry_delay_ms: u64,
 }
 
 impl Default for Config {
@@ -15,8 +19,12 @@ impl Default for Config {
         Self {
             bind_addr: "0.0.0.0:8080".into(),
             db_url: "sqlite://wm.db".into(),
-            wolf_sock_path: "/var/run/wolf.sock".into(),
+            wolf_sock_path: "/var/run/wolf/wolf.sock".into(),
             docker_sock_path: "/var/run/docker.sock".into(),
+            wolf_proxy_connect_timeout_ms: 2000,
+            wolf_proxy_read_timeout_ms: 10000,
+            wolf_proxy_retry_attempts: 3,
+            wolf_proxy_retry_delay_ms: 500,
         }
     }
 }
@@ -42,6 +50,26 @@ impl Config {
         if let Ok(v) = env::var("WM_DOCKER_SOCK_PATH") {
             if !v.is_empty() {
                 cfg.docker_sock_path = v;
+            }
+        }
+        if let Ok(v) = env::var("WM_WOLF_PROXY_CONNECT_TIMEOUT_MS") {
+            if let Ok(parsed) = v.parse::<u64>() {
+                cfg.wolf_proxy_connect_timeout_ms = parsed;
+            }
+        }
+        if let Ok(v) = env::var("WM_WOLF_PROXY_READ_TIMEOUT_MS") {
+            if let Ok(parsed) = v.parse::<u64>() {
+                cfg.wolf_proxy_read_timeout_ms = parsed;
+            }
+        }
+        if let Ok(v) = env::var("WM_WOLF_PROXY_RETRY_ATTEMPTS") {
+            if let Ok(parsed) = v.parse::<u32>() {
+                cfg.wolf_proxy_retry_attempts = parsed;
+            }
+        }
+        if let Ok(v) = env::var("WM_WOLF_PROXY_RETRY_DELAY_MS") {
+            if let Ok(parsed) = v.parse::<u64>() {
+                cfg.wolf_proxy_retry_delay_ms = parsed;
             }
         }
         Ok(cfg)

@@ -1,3 +1,5 @@
+mod routes;
+
 use axum::{
     extract::State,
     http::StatusCode,
@@ -6,12 +8,13 @@ use axum::{
     Json, Router,
 };
 use serde_json::json;
-use std::{convert::Infallible, time::Duration};
+use std::{convert::Infallible, sync::Arc, time::Duration};
 use futures_util::stream;
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use utoipa::OpenApi;
 
+use wm_adapters::wolf_proxy::{WolfProxyClient, WolfProxyConfig};
 use wm_config::Config;
 use wm_storage::{new_pool, migrate};
 
@@ -103,17 +106,35 @@ async fn main() -> anyhow::Result<()> {
     // Build a regular Router with manual OpenAPI serving
     let api = ApiDoc::openapi();
 
+    // Create Wolf proxy client
+    let wolf_config = WolfProxyConfig::new(
+        config.wolf_sock_path.clone(),
+        config.wolf_proxy_connect_timeout_ms,
+        config.wolf_proxy_read_timeout_ms,
+    )
+    .with_retry(
+        config.wolf_proxy_retry_attempts,
+        config.wolf_proxy_retry_delay_ms,
+    );
+    let wolf_client = Arc::new(WolfProxyClient::new(wolf_config));
+    let wolf_router = routes::wolf::wolf_router(wolf_client);
+
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/api/v1/events/stream", get(events_stream))
         .route("/api/v1/ping", get(ping))
         .route("/openapi.json", get(|| async move { Json(api) }))
-        .with_state(state);
+        .with_state(state)
+        .nest("/wolfapi", wolf_router);
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
     info!("Listening on {}", config.bind_addr);
 
-    axum::serve(listener, app.into_make_service()).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }
