@@ -12,6 +12,8 @@ pub struct Config {
     pub wolf_proxy_read_timeout_ms: u64,
     pub wolf_proxy_retry_attempts: u32,
     pub wolf_proxy_retry_delay_ms: u64,
+    pub public_url: Option<String>,
+    pub allow_private_origins: bool,
 }
 
 impl Default for Config {
@@ -25,6 +27,8 @@ impl Default for Config {
             wolf_proxy_read_timeout_ms: 10000,
             wolf_proxy_retry_attempts: 3,
             wolf_proxy_retry_delay_ms: 500,
+            public_url: None,
+            allow_private_origins: true, // Default true for LAN-first operation
         }
     }
 }
@@ -72,6 +76,14 @@ impl Config {
                 cfg.wolf_proxy_retry_delay_ms = parsed;
             }
         }
+        if let Ok(v) = env::var("PUBLIC_URL") {
+            if !v.is_empty() {
+                cfg.public_url = Some(v);
+            }
+        }
+        if let Ok(v) = env::var("WM_ALLOW_PRIVATE_ORIGINS") {
+            cfg.allow_private_origins = v.eq_ignore_ascii_case("true") || v == "1";
+        } // Default is true for LAN operation; set to false for public-only deployments
         Ok(cfg)
     }
 }
