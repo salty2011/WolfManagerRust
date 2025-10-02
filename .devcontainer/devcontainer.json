@@ -15,6 +15,14 @@
     }
   },
 
+  "mounts":[
+    {
+    "source": "/var/run/wolf/",
+    "target": "/var/run/wolf/",
+    "type": "bind"
+    }
+  ],
+
   // Use 'mounts' to make the cargo cache persistent in a Docker Volume.
   // "mounts": [
   //   {
