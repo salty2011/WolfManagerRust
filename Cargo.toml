@@ -18,25 +18,30 @@ anyhow = "1"
 thiserror = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-time = "0.3"
+time = { version = "0.3", features = ["serde"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
 dashmap = "5"
+log = "0.4"
+futures-util = "0.3"
+futures-core = "0.3"
+async-trait = "0.1"
+bytes = "1"
+http = "1"
 
 # Web
-axum = "0.7"
-tokio = { version = "1.38", features = ["macros", "rt-multi-thread", "signal"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace", "compression"] }
+axum = "0.8"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tower = "0.5"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
 
 # OpenAPI
-utoipa = { version = "4", features = ["macros"] }
-utoipa-axum = "0.1"
-utoipa-swagger-ui = { version = "5", features = ["axum"] }
+utoipa = { version = "5", features = ["uuid", "time"] }
+utoipa-axum = "0.2"
 
 # Storage
-sqlx = { version = "0.7", default-features = false, features = [
+sqlx = { version = "0.8", default-features = false, features = [
   "runtime-tokio",
   "macros",
   "uuid",
@@ -44,10 +49,8 @@ sqlx = { version = "0.7", default-features = false, features = [
   "sqlite",
   "postgres",
   "migrate",
-  "offline",
   "any"
 ] }
 
 # Adapters
-reqwest = { version = "0.12", features = ["json", "stream", "rustls-tls", "unix-socket"] }
-bollard = "0.16"
+reqwest = { version = "0.12.23", features = ["json", "stream", "rustls-tls", "gzip", "brotli", "deflate"] }

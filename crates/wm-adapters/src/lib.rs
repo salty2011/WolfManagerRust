@@ -1,36 +1,85 @@
 use anyhow::Result;
-use reqwest::Client;
-use std::time::Duration;
-use tracing::info;
+use async_trait::async_trait;
+use bytes::Bytes;
+use futures_core::Stream;
+use futures_util::stream;
+use http::Method;
+use std::pin::Pin;
+use std::sync::Arc;
 
-pub struct WolfClient {
-    http: Client,
-    pub sock_path: String,
+/// Trait for Wolf API communication (passthrough + SSE streaming)
+#[async_trait]
+pub trait WolfApi: Send + Sync {
+    async fn send_passthrough(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<Bytes>,
+    ) -> Result<Bytes>;
+
+    async fn sse_stream(
+        &self,
+        path: &str,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes>> + Send>>>;
 }
 
-impl WolfClient {
-    pub fn new(sock_path: impl Into<String>) -> Result<Self> {
-        let http = Client::builder()
-            .timeout(Duration::from_secs(30))
-            .build()?;
-        Ok(Self { http, sock_path: sock_path.into() })
+/// Mock implementation for testing and scaffolding
+#[derive(Default)]
+pub struct MockWolfApi;
+
+#[async_trait]
+impl WolfApi for MockWolfApi {
+    async fn send_passthrough(
+        &self,
+        _method: Method,
+        _path: &str,
+        _body: Option<Bytes>,
+    ) -> Result<Bytes> {
+        // Return canned JSON response
+        Ok(Bytes::from_static(b"{\"mock\":true}"))
     }
 
-    // Placeholder: implement SSE stream consumption using unix-socket when wolf API is known.
-    pub async fn health(&self) -> Result<()> {
-        info!("wolf client using socket: {}", self.sock_path);
+    async fn sse_stream(
+        &self,
+        _path: &str,
+    ) -> Result<Pin<Box<dyn Stream<Item = Result<Bytes>> + Send>>> {
+        // Return dummy stream with one event
+        Ok(Box::pin(stream::iter(vec![Ok(Bytes::from_static(
+            b"data: {\"type\":\"mock\"}\n\n",
+        ))])))
+    }
+}
+
+/// Smart constructor for mock implementation
+pub fn mock_wolf() -> Arc<dyn WolfApi> {
+    Arc::new(MockWolfApi::default())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_mock_passthrough() -> Result<()> {
+        let client = mock_wolf();
+        let response = client
+            .send_passthrough(Method::GET, "/test", None)
+            .await?;
+
+        assert_eq!(response, Bytes::from_static(b"{\"mock\":true}"));
         Ok(())
     }
-}
 
-// Docker adapter placeholder via bollard; configure later as needed.
-pub mod docker {
-    use anyhow::Result;
-    use bollard::Docker;
+    #[tokio::test]
+    async fn test_mock_sse_stream() -> Result<()> {
+        use futures_util::StreamExt;
 
-    pub async fn connect(sock_path: &str) -> Result<Docker> {
-        // bollard defaults to /var/run/docker.sock via Docker::connect_with_unix_defaults()
-        let docker = Docker::connect_with_unix(sock_path, 120, bollard::API_DEFAULT_VERSION)?;
-        Ok(docker)
+        let client = mock_wolf();
+        let mut stream = client.sse_stream("/events").await?;
+
+        let event = stream.next().await;
+        assert!(event.is_some());
+
+        Ok(())
     }
 }
