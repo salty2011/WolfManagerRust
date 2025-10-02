@@ -29,6 +29,7 @@ futures-core = "0.3"
 async-trait = "0.1"
 bytes = "1"
 http = "1"
+url = "2"
 
 # Web
 axum = "0.8"

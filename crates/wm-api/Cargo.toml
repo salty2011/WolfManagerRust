@@ -20,6 +20,8 @@ uuid.workspace = true
 sqlx.workspace = true
 futures-util.workspace = true
 futures-core.workspace = true
+url.workspace = true
+http.workspace = true
 
 wm-core = { path = "../wm-core" }
 wm-config = { path = "../wm-config" }

@@ -84,10 +84,44 @@ cargo clippy -- -D warnings
 Configuration is loaded from environment variables with defaults defined in wm-config:
 - `WM_BIND_ADDR` (default: "0.0.0.0:8080")
 - `DATABASE_URL` (default: "sqlite://wm.db")
-- `WM_WOLF_SOCK_PATH` (default: "/var/run/wolf.sock")
+- `WM_WOLF_SOCK_PATH` (default: "/var/run/wolf/wolf.sock")
 - `WM_DOCKER_SOCK_PATH` (default: "/var/run/docker.sock")
+- `PUBLIC_URL` (optional): Exact external public origin for the Web UI (scheme+host+port), e.g., `https://app.example.com` when exposed via Cloudflare
+- `WM_ALLOW_PRIVATE_ORIGINS` (optional, default `true`): When `true`, any private IPv4 origin (10.x.x.x, 172.16-31.x.x, 192.168.x.x) is allowed for LAN operation. Set `false` for public-only deployments.
 
 Defaults are also available in `config/default.toml` for reference.
+
+### CORS Configuration
+
+The API includes a browser-friendly CORS layer designed for **LAN-first operation** with optional public URL support.
+
+**Why we don't use container IPs for CORS:**
+CORS compares the browser's `Origin` header (the front-end app's scheme/host/port), not the server's addresses. Container IPs (e.g., `172.18.x.x`) rarely match the browser Origin (e.g., `http://192.168.1.50:5173`). Therefore, enumerating container interfaces doesn't help with CORS decisions.
+
+**Allowed origins (by default):**
+1. **Detected local IPs** - Auto-detected at startup (any port). Server binds a UDP socket to determine the local interface IP, then allows origins from that IP. Enables same-machine access (e.g., `http://192.168.1.100:5173` when server is on `192.168.1.100`).
+2. **Localhost & loopback** - `localhost`, `127.0.0.1`, `::1` (any port, always allowed)
+3. **Private IPv4 ranges** (default enabled via `WM_ALLOW_PRIVATE_ORIGINS=true`) - `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` (any port) for LAN-wide operation
+4. **`PUBLIC_URL`** (if set) - Exact match (scheme/host/port) for public-facing deployments via Cloudflare/reverse proxy
+
+**Policy details:**
+- **Methods:** GET, POST, PUT, PATCH, DELETE, OPTIONS
+- **Headers:** Authorization, Content-Type, X-API-Key, X-Requested-With
+- **Credentials:** Disabled (`false`)
+- **Max-Age:** 3600 seconds
+
+**Example configurations:**
+```bash
+# Production with exact public URL
+PUBLIC_URL=https://app.example.com
+WM_ALLOW_PRIVATE_ORIGINS=false
+
+# Development with localhost + LAN access
+WM_ALLOW_PRIVATE_ORIGINS=true
+
+# Development with specific frontend origin
+PUBLIC_URL=http://localhost:5173
+```
 
 ### API Endpoints
 All public APIs are versioned under `/api/v1`:

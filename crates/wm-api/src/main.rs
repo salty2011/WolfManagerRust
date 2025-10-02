@@ -1,15 +1,18 @@
+mod middleware;
 mod routes;
 
 use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, sse::{Sse, Event}},
-    routing::get,
+    routing::{any, get},
     Json, Router,
 };
+use http::{Method, header, HeaderName, HeaderValue};
 use serde_json::json;
 use std::{convert::Infallible, sync::Arc, time::Duration};
 use futures_util::stream;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing::info;
 use tracing_subscriber::EnvFilter;
 use utoipa::OpenApi;
@@ -81,6 +84,39 @@ async fn ping(State(state): State<AppState>) -> Result<Json<serde_json::Value>, 
 )]
 struct ApiDoc;
 
+/// Build CORS layer with browser-friendly origin checking
+fn build_cors_layer(config: &Config) -> CorsLayer {
+    let public_url = config.public_url.clone();
+    let allow_private = config.allow_private_origins;
+
+    // Detect local IPs at startup for CORS allowlist
+    let local_ips = middleware::cors::detect_local_ips();
+
+    // Create origin predicate that checks if browser's Origin header is allowed
+    let origin_pred = AllowOrigin::predicate(move |origin: &HeaderValue, _req| {
+        middleware::cors::origin_allowed(origin, public_url.as_deref(), &local_ips, allow_private)
+    });
+
+    CorsLayer::new()
+        .allow_origin(origin_pred)
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            HeaderName::from_static("x-api-key"),
+            HeaderName::from_static("x-requested-with"),
+        ])
+        .max_age(Duration::from_secs(3600))
+        .allow_credentials(false)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Tracing (JSON logs)
@@ -119,13 +155,18 @@ async fn main() -> anyhow::Result<()> {
     let wolf_client = Arc::new(WolfProxyClient::new(wolf_config));
     let wolf_router = routes::wolf::wolf_router(wolf_client);
 
+    // Build CORS layer
+    let cors = build_cors_layer(&config);
+
     let app = Router::new()
         .route("/healthz", get(healthz))
         .route("/api/v1/events/stream", get(events_stream))
         .route("/api/v1/ping", get(ping))
         .route("/openapi.json", get(|| async move { Json(api) }))
         .with_state(state)
-        .nest("/wolfapi", wolf_router);
+        .nest("/wolfapi", wolf_router)
+        .fallback(any(|| async { "" })) // Catch-all for OPTIONS preflight
+        .layer(cors);
 
     let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
     info!("Listening on {}", config.bind_addr);
