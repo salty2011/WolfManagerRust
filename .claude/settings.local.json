@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build:*)",
+      "Bash(cargo update:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo run:*)",
+      "Bash(curl -s http://127.0.0.1:8080/healthz)",
+      "Bash(curl -s http://127.0.0.1:8080/api/v1/ping)",
+      "Bash(curl -s http://127.0.0.1:8080/openapi.json)",
+      "Bash(timeout 5 curl -N -s http://127.0.0.1:8080/api/v1/events/stream)",
+      "Bash(timeout:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nImplement foundation: working API with DB, SSE, and OpenAPI\n\nComplete the base WolfManager foundation with minimal, shippable scope:\n- Updated dependencies to match constraints (axum 0.8, sqlx 0.8, utoipa 5)\n- Wired SqlitePool into AppState with automatic migrations on startup\n- Added /api/v1/ping route with database health check (SELECT 1)\n- Created initial migration with app_boot, users, sessions, events tables\n- Implemented WolfApi trait with MockWolfApi for testing/scaffolding\n- Added unit tests for storage migrations and adapter mock functionality\n- Serving OpenAPI JSON spec at /openapi.json with documented endpoints\n- All endpoints functional: /healthz, /api/v1/ping, /api/v1/events/stream\n\nFoundation is working and tested. Ready for next iteration.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd comprehensive .gitignore entries\n\nAdd ignore patterns for database files, environment files, IDE configs, and logs\nto prevent committing sensitive or generated files.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(curl:*)",
+      "Bash(pkill:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

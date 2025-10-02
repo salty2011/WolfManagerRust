@@ -8,6 +8,7 @@ anyhow.workspace = true
 tracing.workspace = true
 sqlx.workspace = true
 tokio.workspace = true
+log.workspace = true
 
 [features]
 # enable to compile migrations into binary if desired in wm-api later

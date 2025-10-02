@@ -1,0 +1,53 @@
+-- Initial schema for WolfManager
+-- Compatible with SQLite (primary) and Postgres
+
+-- Simple boot tracking table
+CREATE TABLE IF NOT EXISTS app_boot (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  at TEXT NOT NULL
+);
+
+-- Users
+CREATE TABLE IF NOT EXISTS users (
+  id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sessions (login/auth sessions)
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- Normalized append-only events
+CREATE TABLE IF NOT EXISTS events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT,
+  kind TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Current-state tables
+CREATE TABLE IF NOT EXISTS clients (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  status TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS pairings (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  status TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS sessions_current (
+  id TEXT PRIMARY KEY,
+  user_id TEXT,
+  status TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

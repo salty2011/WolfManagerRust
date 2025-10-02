@@ -1,25 +1,42 @@
-use anyhow::{Context, Result};
-use sqlx::{Any, AnyPool, any::AnyConnectOptions, ConnectOptions, migrate::Migrator};
+use anyhow::Result;
+use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use std::str::FromStr;
-use std::path::Path;
 
-static MIGRATOR: Migrator = Migrator::new(std::path::Path::new("./crates/wm-storage/migrations")).const_new();
-
-pub async fn new_pool(database_url: &str) -> Result<AnyPool> {
-    let mut opts = AnyConnectOptions::from_str(database_url)
-        .with_context(|| format!("invalid DATABASE_URL: {}", database_url))?;
-    // Reduce noisy logs by default
-    opts.log_statements(log::LevelFilter::Off);
-    let pool = AnyPool::connect_with(opts).await?;
+pub async fn new_pool(database_url: &str) -> Result<SqlitePool> {
+    // Use SQLite directly (simpler and primary database per constraints)
+    let opts = SqliteConnectOptions::from_str(database_url)?
+        .create_if_missing(true);
+    let pool = SqlitePool::connect_with(opts).await?;
     Ok(pool)
 }
 
-pub async fn migrate(pool: &AnyPool) -> Result<()> {
-    MIGRATOR.run(pool).await?;
+pub async fn migrate(pool: &SqlitePool) -> Result<()> {
+    // Run migrations using the macro
+    sqlx::migrate!("./migrations").run(pool).await?;
     Ok(())
 }
 
-// Helpers for tests or offline prepare paths
-pub fn migrations_dir() -> &'static Path {
-    Path::new("./crates/wm-storage/migrations")
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
+
+    #[tokio::test]
+    async fn test_migrate_sqlite() -> Result<()> {
+        // Use sqlite pool directly for in-memory testing
+        let pool = SqlitePoolOptions::new()
+            .connect("sqlite::memory:")
+            .await?;
+
+        // Run migrations directly on sqlite pool
+        sqlx::migrate!("./migrations").run(&pool).await?;
+
+        // Verify app_boot table exists
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM app_boot")
+            .fetch_one(&pool)
+            .await?;
+        assert_eq!(count, 0);
+
+        Ok(())
+    }
 }

@@ -1,29 +1,26 @@
+mod routes;
+
 use axum::{
     extract::State,
-    response::{IntoResponse, Response, sse::{Sse, Event}},
+    http::StatusCode,
+    response::{IntoResponse, sse::{Sse, Event}},
     routing::get,
     Json, Router,
 };
-use dashmap::DashMap;
-use std::{convert::Infallible, time::Duration, sync::Arc};
-use tokio::time::interval;
-use tokio_stream::{wrappers::IntervalStream, StreamExt};
-use tower_http::{cors::CorsLayer, trace::TraceLayer, compression::CompressionLayer};
-use tracing::{info, Level};
-use tracing_subscriber::{fmt, EnvFilter};
-use utoipa::{OpenApi, ToSchema};
-use utoipa_axum::router::OpenApiRouter;
-use utoipa_swagger_ui::SwaggerUi;
+use serde_json::json;
+use std::{convert::Infallible, sync::Arc, time::Duration};
+use futures_util::stream;
+use tracing::info;
+use tracing_subscriber::EnvFilter;
+use utoipa::OpenApi;
 
+use wm_adapters::wolf_proxy::{WolfProxyClient, WolfProxyConfig};
 use wm_config::Config;
 use wm_storage::{new_pool, migrate};
 
 #[derive(Clone)]
 struct AppState {
-    realtime: Arc<DashMap<String, String>>,
-    config: Config,
-    // Using sqlx AnyPool behind an Arc would be ideal; keep simple here.
-    // pool: sqlx::AnyPool,
+    pool: sqlx::SqlitePool,
 }
 
 #[utoipa::path(
@@ -45,19 +42,38 @@ async fn healthz() -> impl IntoResponse {
     )
 )]
 async fn events_stream(State(_state): State<AppState>) -> Sse<impl futures_core::Stream<Item = Result<Event, Infallible>>> {
-    let mut ticker = IntervalStream::new(interval(Duration::from_secs(5)))
-        .map(|_| Ok(Event::default().json_data(serde_json::json!({"type": "heartbeat"})).unwrap()));
-    Sse::new(async_stream::stream! {
-        while let Some(ev) = ticker.next().await {
-            yield ev;
-        }
-    })
-    .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15)))
+    let tick_stream = stream::unfold(tokio::time::interval(Duration::from_secs(5)), |mut interval| async move {
+        interval.tick().await;
+        Some((Ok(Event::default().data(json!({"type": "heartbeat"}).to_string())), interval))
+    });
+
+    Sse::new(tick_stream)
+        .keep_alive(axum::response::sse::KeepAlive::new().interval(Duration::from_secs(15)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/v1/ping",
+    responses(
+        (status = 200, description = "Ping with DB check"),
+        (status = 500, description = "Database error")
+    )
+)]
+async fn ping(State(state): State<AppState>) -> Result<Json<serde_json::Value>, StatusCode> {
+    // Test DB connection with simple query
+    let result: Result<i64, _> = sqlx::query_scalar("SELECT 1")
+        .fetch_one(&state.pool)
+        .await;
+
+    match result {
+        Ok(_) => Ok(Json(json!({"ok": true, "db": "up"}))),
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 #[derive(OpenApi)]
 #[openapi(
-    paths(healthz, events_stream),
+    paths(healthz, events_stream, ping),
     components(schemas()),
     tags(
         (name = "wm-api", description = "WolfManager API")
@@ -79,35 +95,46 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load()?;
     info!("Starting wm-api on {}", config.bind_addr);
 
-    // Initialize DB (optional at bootstrap; uncomment when needed)
-    // let pool = new_pool(&config.db_url).await?;
-    // migrate(&pool).await?;
+    // Initialize DB
+    let pool = new_pool(&config.db_url).await?;
+    migrate(&pool).await?;
 
     let state = AppState {
-        realtime: Arc::new(DashMap::new()),
-        config,
-        // pool,
+        pool: pool.clone(),
     };
 
-    let api = OpenApiRouter::new()
-        .routes(
-            Router::new()
-                .route("/healthz", get(healthz))
-                .route("/api/v1/events/stream", get(events_stream))
-        )
-        .with_openapi(ApiDoc::openapi());
+    // Build a regular Router with manual OpenAPI serving
+    let api = ApiDoc::openapi();
+
+    // Create Wolf proxy client
+    let wolf_config = WolfProxyConfig::new(
+        config.wolf_sock_path.clone(),
+        config.wolf_proxy_connect_timeout_ms,
+        config.wolf_proxy_read_timeout_ms,
+    )
+    .with_retry(
+        config.wolf_proxy_retry_attempts,
+        config.wolf_proxy_retry_delay_ms,
+    );
+    let wolf_client = Arc::new(WolfProxyClient::new(wolf_config));
+    let wolf_router = routes::wolf::wolf_router(wolf_client);
 
     let app = Router::new()
-        .merge(api)
-        .merge(SwaggerUi::new("/docs").url("/api/v1/openapi.json", ApiDoc::openapi()))
-        .layer(CorsLayer::permissive())
-        .layer(CompressionLayer::new())
-        .layer(TraceLayer::new_for_http())
-        .with_state(state);
+        .route("/healthz", get(healthz))
+        .route("/api/v1/events/stream", get(events_stream))
+        .route("/api/v1/ping", get(ping))
+        .route("/openapi.json", get(|| async move { Json(api) }))
+        .with_state(state)
+        .nest("/wolfapi", wolf_router);
 
-    axum::Server::bind(&config.bind_addr.parse()?)
-        .serve(app.into_make_service())
-        .await?;
+    let listener = tokio::net::TcpListener::bind(&config.bind_addr).await?;
+    info!("Listening on {}", config.bind_addr);
+
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await?;
 
     Ok(())
 }
